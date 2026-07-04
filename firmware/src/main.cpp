@@ -2,6 +2,8 @@
 #include <Adafruit_VL53L0X.h>
 #include <Arduino.h>
 
+
+
 Adafruit_VL53L0X sensor = Adafruit_VL53L0X();
 
 // DRV8833 pins
@@ -9,7 +11,13 @@ const int AIN1 = 18;
 const int AIN2 = 19;
 const int NSLEEP = 5;
 
+//sensor pins
+const int tofSDA = 21;
+const int tofSCL = 22;
+
+//config
 const int DETECT_DISTANCE = 100; // mm
+const int motorDelay = 800; // ms
 
 enum LidState {
   CLOSED,
@@ -42,7 +50,7 @@ void setup() {
 
   digitalWrite(NSLEEP, HIGH);
 
-  Wire.begin(21, 22);
+  Wire.begin(tofSDA, tofSCL); // sda, scl
 
   if (!sensor.begin()) {
     Serial.println("VL53L0X not found");
@@ -74,7 +82,7 @@ void loop() {
   if (detected && lidState == CLOSED) {
     Serial.println("Opening");
     motorOpen();
-    delay(800);
+    delay(motorDelay);
     motorStop();
     lidState = OPEN;
   }
@@ -82,7 +90,7 @@ void loop() {
   if (!detected && lidState == OPEN) {
     Serial.println("Closing");
     motorClose();
-    delay(800);
+    delay(motorDelay);
     motorStop();
     lidState = CLOSED;
   }
