@@ -1,19 +1,12 @@
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
-#include <Arduino.h>
-
-
 
 Adafruit_VL53L0X sensor = Adafruit_VL53L0X();
 
 // DRV8833 pins
-const int AIN1 = 18;
-const int AIN2 = 19;
-const int NSLEEP = 5;
-
-//sensor pins
-const int tofSDA = 21;
-const int tofSCL = 22;
+const int AIN1 = 4;
+const int AIN2 = 5;
+//const int NSLEEP = 5;
 
 //config
 const int DETECT_DISTANCE = 100; // mm
@@ -46,11 +39,11 @@ void setup() {
 
   pinMode(AIN1, OUTPUT);
   pinMode(AIN2, OUTPUT);
-  pinMode(NSLEEP, OUTPUT);
+  //pinMode(NSLEEP, OUTPUT);
 
-  digitalWrite(NSLEEP, HIGH);
+  //digitalWrite(NSLEEP, HIGH);
 
-  Wire.begin(tofSDA, tofSCL); // sda, scl
+  Wire.begin(); // sda, scl
 
   if (!sensor.begin()) {
     Serial.println("VL53L0X not found");
