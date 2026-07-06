@@ -81,8 +81,3 @@ Note: this diagram is intended as a reference for where to place things only.
 ## Firmware
 
 The firmware for this project can be found in ![firmware](./firmware/).
-
-# Credits
-
-Created by @
-
