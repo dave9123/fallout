@@ -39,8 +39,6 @@ enum MotorState
 LidState lidState = CLOSED;
 MotorState motorState = MOTOR_STOPPED;
 
-unsigned long motorStartTime = 0;
-
 void motorStop()
 {
   analogWrite(AIN1, 0);
@@ -61,14 +59,38 @@ void driveMotorSequence(int drivePin, int gndPin)
   motorStop();
 }
 
+// Rapid back-and-forth movement to simulate munching
+void munchAnimation()
+{
+  Serial.println("Munching...");
+  const int munchSpeed = 160; 
+  const int munchTime = 120; // Short duration for a "twitch" effect
+  const int chomps = 3;      // Number of chews
+
+  for (int i = 0; i < chomps; i++)
+  {
+    // Open slightly (AIN1 high)
+    analogWrite(AIN1, munchSpeed);
+    analogWrite(AIN2, 0);
+    delay(munchTime);
+
+    // Close firmly (AIN2 high)
+    analogWrite(AIN1, 0);
+    analogWrite(AIN2, munchSpeed);
+    delay(munchTime);
+  }
+  
+  // Ensure the motor stops fully closed
+  motorStop();
+}
+
+// Re-initialize the I2C bus and sensor on lockup/disconnect
 void resetSensor()
 {
-  Serial.println("Resetting sensor due to I2C lockup...");
+  Serial.println("Attempting to reset and reconnect sensor...");
   
-  // Re-initialize the I2C bus (helps clear hung I2C states on many microcontrollers)
-  Wire.begin(); 
+  Wire.begin();
   
-  sensor.setTimeout(500);
   if (!sensor.init())
   {
     Serial.println("Failed to reconnect to VL53L0X!");
@@ -76,12 +98,63 @@ void resetSensor()
   else
   {
     Serial.println("Sensor reconnected successfully.");
+    sensor.setTimeout(500);
     sensor.startContinuous();
   }
 
-  // Reset lockup trackers regardless of success so it doesn't get stuck in an infinite reset loop
   lastDistance = -1;
   sameValueCount = 0;
+}
+
+// Handle incoming 1-letter serial commands
+void processSerialCommands()
+{
+  if (Serial.available() > 0)
+  {
+    char cmd = Serial.read();
+    
+    switch (cmd)
+    {
+      case 'o':
+      case 'O':
+        if (lidState == CLOSED)
+        {
+          Serial.println("Manual Override: Opening");
+          driveMotorSequence(AIN1, AIN2);
+          lidState = OPEN;
+          outOfRangeCount = 0; // Reset so it doesn't immediately close
+        }
+        break;
+
+      case 'c':
+      case 'C':
+        if (lidState == OPEN)
+        {
+          Serial.println("Manual Override: Closing");
+          driveMotorSequence(AIN2, AIN1);
+          lidState = CLOSED;
+        }
+        break;
+
+      case 'm':
+      case 'M':
+        Serial.println("Manual Override: Munch");
+        munchAnimation();
+        // Make sure state reflects closed after munching
+        lidState = CLOSED; 
+        break;
+
+      case 'r':
+      case 'R':
+        Serial.println("Manual Override: Reset Sensor");
+        resetSensor();
+        break;
+
+      default:
+        // Ignore spaces, newlines, and unrecognized characters
+        break;
+    }
+  }
 }
 
 void setup()
@@ -96,28 +169,33 @@ void setup()
   sensor.setTimeout(500);
   if (!sensor.init())
   {
-    Serial.println("VL53L0X not found");
-    while (1)
-      ;
+    Serial.println("VL53L0X not found at startup");
+  }
+  else
+  {
+    sensor.startContinuous();
   }
 
-  sensor.startContinuous();
+  Serial.println("System Ready. Send 'o' to open, 'c' to close, 'm' to munch, 'r' to reset.");
 }
 
 void loop()
 {
+  // 1. Check for manual serial commands first
+  processSerialCommands();
+
+  // 2. Read sensor data
   uint16_t distance = sensor.readRangeContinuousMillimeters();
   bool detected = false;
 
-  // Outer check handles the MAX_VALID_DISTANCE (acting as range status validation)
   if (!sensor.timeoutOccurred() && distance < MAX_VALID_DISTANCE)
   {
-    // Detect sensor lockup (same reading repeatedly)
     if (distance == lastDistance)
     {
       sameValueCount++;
       if (sameValueCount > SAME_VALUE_THRESHOLD)
       {
+        Serial.println("Sensor locked up (same value).");
         resetSensor(); 
         delay(50);
         return;
@@ -129,11 +207,11 @@ void loop()
       sameValueCount = 0;
     }
 
+    // Only print if reasonable to avoid console spam during timeouts
     Serial.print("Distance: ");
     Serial.print(distance);
     Serial.println(" mm");
 
-    // Simplified logic: we already know it's < MAX_VALID_DISTANCE
     if (distance < DETECT_DISTANCE)
     {
       detected = true;
@@ -146,31 +224,36 @@ void loop()
   }
   else
   {
-    if (sensor.timeoutOccurred()) {
-        Serial.println("Sensor Timeout!");
-        resetSensor(); // Attempt to recover if the sensor totally timed out
-    } else {
-        Serial.println("Out of range");
-    }
+    if (sensor.timeoutOccurred()) 
+    {
+      Serial.println("Sensor Timeout! I2C may be disconnected.");
+      resetSensor();
+      delay(50);
+      return;
+    } 
     
     outOfRangeCount++;
     lastDistance = -1;
     sameValueCount = 0;
   }
 
-  // ---------------- Automatic Lid Control ----------------
+  // 3. Automatic Lid Control
   if (motorState == MOTOR_STOPPED)
   {
     if (detected && lidState == CLOSED)
     {
-      Serial.println("Opening");
+      Serial.println("Opening (Auto)");
       driveMotorSequence(AIN1, AIN2);
       lidState = OPEN;
     }
     else if (lidState == OPEN && outOfRangeCount >= OUT_OF_RANGE_THRESHOLD)
     {
-      Serial.println("Closing");
+      Serial.println("Closing (Auto)");
       driveMotorSequence(AIN2, AIN1);
+      
+      delay(200);       
+      munchAnimation(); 
+
       lidState = CLOSED;
       outOfRangeCount = 0;
     }
