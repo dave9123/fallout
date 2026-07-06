@@ -61,6 +61,9 @@ The materials used for this are:
 
 ![assembly diagram](./showcase/assembly-diagram.png)
 
+Note: this diagram is intended as a reference for where to place things only.
+
+
 ## Wiring Diagram
 
 ![schematic image](./showcase/schematic.png)
@@ -77,4 +80,9 @@ The materials used for this are:
 
 ## Firmware
 
-The firmware for this project can be found in [firmware](./firmware/).
+The firmware for this project can be found in ![firmware](./firmware/).
+
+# Credits
+
+Created by @
+
