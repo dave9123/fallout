@@ -40,6 +40,19 @@ Steps:
 
 # Project Design & Assembly Showcase
 
+## Materials
+
+The materials used for this are:
+
+1. Breadboards
+2. Arduino Nano
+3. PLA Filament (for hinge)
+4. Cardboard
+5. VL53L0X (time of flight sensor)
+6. Jumper Cables
+7. Yellow DC Motor
+8. Hot Glue Gun
+
 ## Assembly Diagram
 
 ![front](./showcase/front.png)
@@ -53,11 +66,12 @@ Steps:
 
 ![schematic image](./showcase/schematic.png)
 
-[PDF of schematic](./showcase/fallout.pdf)
+[PDF of Schematic](./showcase/schematic.pdf)
 
 ## 3D Models
 
-3D models as reference (or possibly for 3D printing) can be found in ![3d](./3d/).
+3D models as reference (or possibly for 3D printing) can be found in the [3d folder](./3d/)!
+
 ## Firmware
 
 The firmware for this project can be found in ![firmware](./firmware/).
