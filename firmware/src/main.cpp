@@ -1,5 +1,6 @@
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
+#include <Arduino.h>
 
 Adafruit_VL53L0X sensor = Adafruit_VL53L0X();
 
