@@ -15,12 +15,12 @@ Soup's mouth movement is powered by a DC motor which is controlled by an Arduino
 
 During idle, Soup's head sits with pulled string which causes its mouth to open. A time-of-flight sensor is used to detect when an object comes near Soup's mouth. If an object comes close to Soup's mouth, the DC motor will unwind and wind the string repeatedly to create a chewing motion.
 
-# Build Instruction
+# Build Instructions
 
 You will need:
 1. A soldering iron
 2. Solder
-3. Everything from [BOM](./bom.csv)
+3. Everything from [BOM](#materials)
 4. Wire stripper
 5. Scissors
 6. Hot glue gun
@@ -28,6 +28,7 @@ You will need:
 This project is made for Fallout 2026 hackathon in which we only had approximately 4 days to build and submit a hardware, so we used breadboards and jumper wires to wire up everything. In case you really want to build it from the ground up properly, simply create a PCB following the wiring schematic later given in this document!
 
 Steps:
+
 1. Create your Soup model:
     - Two cylindrical cardboards as Soup's lower body and chest, combined together with the height of 27 cm.
     - Create Soup's head by modeling a half sphere. You can create a 2-dimensional donut shape, add some support wireframes (with cardboard or actual wire), then wrap everything with thinner paper.
@@ -52,6 +53,7 @@ The materials used for this are:
 6. Jumper Cables
 7. Yellow DC Motor
 8. Hot Glue Gun
+9. Paint
 
 ## Assembly Diagram
 
@@ -77,4 +79,4 @@ The materials used for this are:
 
 ## Firmware
 
-The firmware for this project can be found in ![firmware](./firmware/).
+The firmware for this project can be found in [firmware](./firmware/).
