@@ -18,6 +18,11 @@ const unsigned long MOTOR_TIME_OPENING = 800;
 // Number of consecutive "no object" readings before closing
 const int OUT_OF_RANGE_THRESHOLD = 3;
 
+// Sensor stuck detection
+const int SAME_VALUE_THRESHOLD = 10;
+int lastDistance = -1;
+int sameValueCount = 0;
+
 int outOfRangeCount = 0;
 
 enum LidState {
@@ -69,6 +74,30 @@ void stopMotor() {
   Serial.println("Stopped");
 }
 
+void resetSensor() {
+  Serial.println("Sensor appears stuck. Resetting I2C...");
+
+  sensor.stopRangeContinuous();
+
+  Wire.end();
+  delay(20);
+
+  Wire.begin();
+  delay(20);
+
+  if (!sensor.begin()) {
+    Serial.println("Failed to reinitialize VL53L0X");
+    return;
+  }
+
+  sensor.startRangeContinuous();
+
+  lastDistance = -1;
+  sameValueCount = 0;
+
+  Serial.println("VL53L0X restarted.");
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -115,6 +144,20 @@ void loop() {
   if (measure.RangeStatus != 4) {
     int distance = measure.RangeMilliMeter;
 
+    // Detect sensor lockup (same reading repeatedly)
+    if (distance == lastDistance) {
+      sameValueCount++;
+
+      if (sameValueCount > SAME_VALUE_THRESHOLD) {
+        resetSensor();
+        delay(50);
+        return;
+      }
+    } else {
+      lastDistance = distance;
+      sameValueCount = 0;
+    }
+
     Serial.print("Distance: ");
     Serial.print(distance);
     Serial.println(" mm");
@@ -132,9 +175,13 @@ void loop() {
   } else {
     Serial.println("Out of range");
     outOfRangeCount++;
+
+    // Reset repeated-reading detection
+    lastDistance = -1;
+    sameValueCount = 0;
   }
 
-  // Automatic lid control (only when motor is idle)
+  // ---------------- Automatic Lid Control ----------------
   if (motorState == MOTOR_STOPPED) {
 
     if (detected && lidState == CLOSED) {
@@ -150,6 +197,11 @@ void loop() {
 
   // ---------------- Motor Timer ----------------
   if ((motorState == MOTOR_CLOSING &&
-      millis() - motorStartTime >= MOTOR_TIME_CLOSING) || (motorState == MOTOR_OPENING &&
-  millis() - motorStartTime >= MOTOR_TIME_OPENING)) stopMotor();
+       millis() - motorStartTime >= MOTOR_TIME_CLOSING) ||
+      (motorState == MOTOR_OPENING &&
+       millis() - motorStartTime >= MOTOR_TIME_OPENING)) {
+    stopMotor();
+  }
+
+  delay(30);
 }
