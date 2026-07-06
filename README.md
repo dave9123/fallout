@@ -61,12 +61,15 @@ The materials used for this are:
 
 ![assembly diagram](./showcase/assembly-diagram.png)
 
-
 ## Wiring Diagram
 
 ![schematic image](./showcase/schematic.png)
 
 [PDF of Schematic](./showcase/schematic.pdf)
+
+
+![bottom side wiring of the electronics and the driver modules](./showcase/wiring-lower.jpg)
+![inner side wiring with motor and rope](./showcase/wiring-inner.jpg)
 
 ## 3D Models
 
@@ -75,7 +78,3 @@ The materials used for this are:
 ## Firmware
 
 The firmware for this project can be found in ![firmware](./firmware/).
-
-# Credits
-
-
