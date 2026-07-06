@@ -1,4 +1,10 @@
 # FEED SOUP! But IRL
+
+<p align="center">
+	<img width="420" height="595" src="./showcase/zine.jpg" />
+	<br><a href="./zine.pdf">View Magazine</a>
+</p>
+
 COME AND FEED SOUP KOI OR ANYTHING ELSE THAT'LL MAKE HIM HAPPY!
 
 # Background
