@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_VL53L0X.h>
+#include <VL53L0X.h>
 
-Adafruit_VL53L0X sensor;
+VL53L0X sensor;
 
 // DRV8833 pins
 const int AIN1 = 5;
@@ -41,30 +41,47 @@ MotorState motorState = MOTOR_STOPPED;
 
 unsigned long motorStartTime = 0;
 
-void motorOpen()
-{
-  for (int s = 0; s <= MOTOR_SPEED; s += 10)
-  {
-    analogWrite(AIN1, s);
-    analogWrite(AIN2, 0);
-    delay(5);
-  }
-}
-
-void motorClose()
-{
-  for (int s = 0; s <= MOTOR_SPEED; s += 10)
-  {
-    analogWrite(AIN1, 0);
-    analogWrite(AIN2, s);
-    delay(5);
-  }
-}
-
 void motorStop()
 {
   analogWrite(AIN1, 0);
   analogWrite(AIN2, 0);
+}
+
+// Reusable function to ramp up the motor, hold, and stop
+void driveMotorSequence(int drivePin, int gndPin)
+{
+  for (int s = 0; s <= MOTOR_SPEED; s += 10)
+  {
+    analogWrite(drivePin, s);
+    analogWrite(gndPin, 0);
+    delay(5);
+  }
+  
+  delay(motorDelay);
+  motorStop();
+}
+
+void resetSensor()
+{
+  Serial.println("Resetting sensor due to I2C lockup...");
+  
+  // Re-initialize the I2C bus (helps clear hung I2C states on many microcontrollers)
+  Wire.begin(); 
+  
+  sensor.setTimeout(500);
+  if (!sensor.init())
+  {
+    Serial.println("Failed to reconnect to VL53L0X!");
+  }
+  else
+  {
+    Serial.println("Sensor reconnected successfully.");
+    sensor.startContinuous();
+  }
+
+  // Reset lockup trackers regardless of success so it doesn't get stuck in an infinite reset loop
+  lastDistance = -1;
+  sameValueCount = 0;
 }
 
 void setup()
@@ -76,35 +93,32 @@ void setup()
 
   Wire.begin();
 
-  if (!sensor.begin())
+  sensor.setTimeout(500);
+  if (!sensor.init())
   {
     Serial.println("VL53L0X not found");
     while (1)
       ;
   }
 
-  sensor.startRangeContinuous();
+  sensor.startContinuous();
 }
 
 void loop()
 {
-  VL53L0X_RangingMeasurementData_t measure;
-  sensor.rangingTest(&measure, false);
-
+  uint16_t distance = sensor.readRangeContinuousMillimeters();
   bool detected = false;
 
-  if (measure.RangeStatus != 4)
+  // Outer check handles the MAX_VALID_DISTANCE (acting as range status validation)
+  if (!sensor.timeoutOccurred() && distance < MAX_VALID_DISTANCE)
   {
-    int distance = measure.RangeMilliMeter;
-
     // Detect sensor lockup (same reading repeatedly)
     if (distance == lastDistance)
     {
       sameValueCount++;
-
       if (sameValueCount > SAME_VALUE_THRESHOLD)
       {
-        resetSensor();
+        resetSensor(); 
         delay(50);
         return;
       }
@@ -119,31 +133,27 @@ void loop()
     Serial.print(distance);
     Serial.println(" mm");
 
-    // Only accept reasonable measurements
-    if (distance < MAX_VALID_DISTANCE)
+    // Simplified logic: we already know it's < MAX_VALID_DISTANCE
+    if (distance < DETECT_DISTANCE)
     {
-      if (distance < DETECT_DISTANCE)
-      {
-        detected = true;
-        outOfRangeCount = 0; // reset counter
-      }
-      else
-      {
-        outOfRangeCount++;
-      }
+      detected = true;
+      outOfRangeCount = 0;
     }
     else
     {
-      // Treat absurd readings as out of range
       outOfRangeCount++;
     }
   }
   else
   {
-    Serial.println("Out of range");
+    if (sensor.timeoutOccurred()) {
+        Serial.println("Sensor Timeout!");
+        resetSensor(); // Attempt to recover if the sensor totally timed out
+    } else {
+        Serial.println("Out of range");
+    }
+    
     outOfRangeCount++;
-
-    // Reset repeated-reading detection
     lastDistance = -1;
     sameValueCount = 0;
   }
@@ -151,25 +161,20 @@ void loop()
   // ---------------- Automatic Lid Control ----------------
   if (motorState == MOTOR_STOPPED)
   {
-
     if (detected && lidState == CLOSED)
     {
       Serial.println("Opening");
-      motorOpen();
-      delay(motorDelay);
-      motorStop();
+      driveMotorSequence(AIN1, AIN2);
       lidState = OPEN;
     }
-
-    if (lidState == OPEN && outOfRangeCount >= OUT_OF_RANGE_THRESHOLD)
+    else if (lidState == OPEN && outOfRangeCount >= OUT_OF_RANGE_THRESHOLD)
     {
       Serial.println("Closing");
-      motorClose();
-      delay(motorDelay);
-      motorStop();
+      driveMotorSequence(AIN2, AIN1);
       lidState = CLOSED;
       outOfRangeCount = 0;
     }
 
     delay(30);
   }
+}
