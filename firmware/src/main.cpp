@@ -8,12 +8,10 @@ Adafruit_VL53L0X sensor;
 const int AIN1 = 5;
 const int AIN2 = 3;
 
-// Settings
-const int DETECT_DISTANCE = 500;      // mm
-const int MAX_VALID_DISTANCE = 8000;  // Ignore absurd readings
-const int MOTOR_SPEED = 200;
-const unsigned long MOTOR_TIME_CLOSING = 300; // ms
-const unsigned long MOTOR_TIME_OPENING = 800;
+const int DETECT_DISTANCE = 500;     // mm
+const int MAX_VALID_DISTANCE = 8000; // Ignore anything above this
+const int motorDelay = 300;          // ms
+const int MOTOR_SPEED = 180;         // 0-255
 
 // Number of consecutive "no object" readings before closing
 const int OUT_OF_RANGE_THRESHOLD = 3;
@@ -25,12 +23,14 @@ int sameValueCount = 0;
 
 int outOfRangeCount = 0;
 
-enum LidState {
+enum LidState
+{
   CLOSED,
   OPEN
 };
 
-enum MotorState {
+enum MotorState
+{
   MOTOR_STOPPED,
   MOTOR_OPENING,
   MOTOR_CLOSING
@@ -41,64 +41,34 @@ MotorState motorState = MOTOR_STOPPED;
 
 unsigned long motorStartTime = 0;
 
-void startClose() {
-  analogWrite(AIN1, MOTOR_SPEED);
-  analogWrite(AIN2, 0);
-
-  motorState = MOTOR_OPENING;
-  motorStartTime = millis();
-
-  Serial.println("Opening");
-}
-
-void startOpen() {
-  analogWrite(AIN1, 0);
-  analogWrite(AIN2, MOTOR_SPEED);
-
-  motorState = MOTOR_CLOSING;
-  motorStartTime = millis();
-
-  Serial.println("Closing");
-}
-
-void stopMotor() {
-  analogWrite(AIN1, 0);
-  analogWrite(AIN2, 0);
-
-  if (motorState == MOTOR_OPENING)
-    lidState = OPEN;
-  else if (motorState == MOTOR_CLOSING)
-    lidState = CLOSED;
-
-  motorState = MOTOR_STOPPED;
-  Serial.println("Stopped");
-}
-
-void resetSensor() {
-  Serial.println("Sensor appears stuck. Resetting I2C...");
-
-  sensor.stopRangeContinuous();
-
-  Wire.end();
-  delay(20);
-
-  Wire.begin();
-  delay(20);
-
-  if (!sensor.begin()) {
-    Serial.println("Failed to reinitialize VL53L0X");
-    return;
+void motorOpen()
+{
+  for (int s = 0; s <= MOTOR_SPEED; s += 10)
+  {
+    analogWrite(AIN1, s);
+    analogWrite(AIN2, 0);
+    delay(5);
   }
-
-  sensor.startRangeContinuous();
-
-  lastDistance = -1;
-  sameValueCount = 0;
-
-  Serial.println("VL53L0X restarted.");
 }
 
-void setup() {
+void motorClose()
+{
+  for (int s = 0; s <= MOTOR_SPEED; s += 10)
+  {
+    analogWrite(AIN1, 0);
+    analogWrite(AIN2, s);
+    delay(5);
+  }
+}
+
+void motorStop()
+{
+  analogWrite(AIN1, 0);
+  analogWrite(AIN2, 0);
+}
+
+void setup()
+{
   Serial.begin(115200);
 
   pinMode(AIN1, OUTPUT);
@@ -106,54 +76,41 @@ void setup() {
 
   Wire.begin();
 
-  if (!sensor.begin()) {
+  if (!sensor.begin())
+  {
     Serial.println("VL53L0X not found");
-    while (1);
+    while (1)
+      ;
   }
 
   sensor.startRangeContinuous();
 }
 
-void loop() {
-
-  // ---------------- Serial Commands ----------------
-  if (Serial.available()) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
-    cmd.toLowerCase();
-
-    if (cmd == "u") {
-      if (motorState == MOTOR_STOPPED)
-        startClose();
-    }
-    else if (cmd == "d") {
-      if (motorState == MOTOR_STOPPED)
-        startOpen();
-    }
-    else if (cmd == "s") {
-      stopMotor();
-    }
-  }
-
-  // ---------------- Sensor ----------------
+void loop()
+{
   VL53L0X_RangingMeasurementData_t measure;
   sensor.rangingTest(&measure, false);
 
   bool detected = false;
 
-  if (measure.RangeStatus != 4) {
+  if (measure.RangeStatus != 4)
+  {
     int distance = measure.RangeMilliMeter;
 
     // Detect sensor lockup (same reading repeatedly)
-    if (distance == lastDistance) {
+    if (distance == lastDistance)
+    {
       sameValueCount++;
 
-      if (sameValueCount > SAME_VALUE_THRESHOLD) {
+      if (sameValueCount > SAME_VALUE_THRESHOLD)
+      {
         resetSensor();
         delay(50);
         return;
       }
-    } else {
+    }
+    else
+    {
       lastDistance = distance;
       sameValueCount = 0;
     }
@@ -162,17 +119,27 @@ void loop() {
     Serial.print(distance);
     Serial.println(" mm");
 
-    if (distance < MAX_VALID_DISTANCE) {
-      if (distance < DETECT_DISTANCE) {
+    // Only accept reasonable measurements
+    if (distance < MAX_VALID_DISTANCE)
+    {
+      if (distance < DETECT_DISTANCE)
+      {
         detected = true;
-        outOfRangeCount = 0;
-      } else {
+        outOfRangeCount = 0; // reset counter
+      }
+      else
+      {
         outOfRangeCount++;
       }
-    } else {
+    }
+    else
+    {
+      // Treat absurd readings as out of range
       outOfRangeCount++;
     }
-  } else {
+  }
+  else
+  {
     Serial.println("Out of range");
     outOfRangeCount++;
 
@@ -182,26 +149,27 @@ void loop() {
   }
 
   // ---------------- Automatic Lid Control ----------------
-  if (motorState == MOTOR_STOPPED) {
+  if (motorState == MOTOR_STOPPED)
+  {
 
-    if (detected && lidState == CLOSED) {
-      startClose();
+    if (detected && lidState == CLOSED)
+    {
+      Serial.println("Opening");
+      motorOpen();
+      delay(motorDelay);
+      motorStop();
+      lidState = OPEN;
     }
 
-    if (lidState == OPEN &&
-        outOfRangeCount >= OUT_OF_RANGE_THRESHOLD) {
-      startOpen();
+    if (lidState == OPEN && outOfRangeCount >= OUT_OF_RANGE_THRESHOLD)
+    {
+      Serial.println("Closing");
+      motorClose();
+      delay(motorDelay);
+      motorStop();
+      lidState = CLOSED;
       outOfRangeCount = 0;
     }
-  }
 
-  // ---------------- Motor Timer ----------------
-  if ((motorState == MOTOR_CLOSING &&
-       millis() - motorStartTime >= MOTOR_TIME_CLOSING) ||
-      (motorState == MOTOR_OPENING &&
-       millis() - motorStartTime >= MOTOR_TIME_OPENING)) {
-    stopMotor();
+    delay(30);
   }
-
-  delay(30);
-}
