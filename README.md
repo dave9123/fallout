@@ -18,12 +18,12 @@ During idle, Soup's head sits with pulled string which causes its mouth to open.
 # Build Instructions
 
 You will need:
-1. A soldering iron
+1. Soldering iron
 2. Solder
 3. Everything from [BOM](#materials)
-4. Wire stripper
+4. Wire Stripper
 5. Scissors
-6. Hot glue gun
+6. Hot Glue Gun
 
 This project is made for Fallout 2026 hackathon in which we only had approximately 4 days to build and submit a hardware, so we used breadboards and jumper wires to wire up everything. In case you really want to build it from the ground up properly, simply create a PCB following the wiring schematic later given in this document!
 
@@ -48,12 +48,10 @@ The materials used for this are:
 1. Breadboards
 2. Arduino Nano
 3. PLA Filament (for hinge)
-4. Cardboard
-5. VL53L0X (time of flight sensor)
-6. Jumper Cables
-7. Yellow DC Motor
-8. Hot Glue Gun
-9. Paint
+4. VL53L0X (time of flight sensor)
+5. Jumper Cables
+6. Yellow DC Motor
+7. Paint
 
 ## Assembly Diagram
 
