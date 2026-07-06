@@ -1,17 +1,19 @@
+#include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
-#include <Arduino.h>
 
-Adafruit_VL53L0X sensor = Adafruit_VL53L0X();
+Adafruit_VL53L0X sensor;
 
 // DRV8833 pins
-const int AIN1 = 3;
-const int AIN2 = 5;
+const int AIN1 = 5;
+const int AIN2 = 3;
 
+// Settings
 const int DETECT_DISTANCE = 500;      // mm
-const int MAX_VALID_DISTANCE = 8000;  // Ignore anything above this
-const int motorDelay = 300;           // ms
-const int MOTOR_SPEED = 180;          // 0-255
+const int MAX_VALID_DISTANCE = 8000;  // Ignore absurd readings
+const int MOTOR_SPEED = 200;
+const unsigned long MOTOR_TIME_CLOSING = 300; // ms
+const unsigned long MOTOR_TIME_OPENING = 800;
 
 // Number of consecutive "no object" readings before closing
 const int OUT_OF_RANGE_THRESHOLD = 3;
@@ -23,27 +25,48 @@ enum LidState {
   OPEN
 };
 
+enum MotorState {
+  MOTOR_STOPPED,
+  MOTOR_OPENING,
+  MOTOR_CLOSING
+};
+
 LidState lidState = CLOSED;
+MotorState motorState = MOTOR_STOPPED;
 
-void motorOpen() {
-  for (int s = 0; s <= MOTOR_SPEED; s += 10) {
-    analogWrite(AIN1, s);
-    analogWrite(AIN2, 0);
-    delay(5);
-  }
+unsigned long motorStartTime = 0;
+
+void startClose() {
+  analogWrite(AIN1, MOTOR_SPEED);
+  analogWrite(AIN2, 0);
+
+  motorState = MOTOR_OPENING;
+  motorStartTime = millis();
+
+  Serial.println("Opening");
 }
 
-void motorClose() {
-  for (int s = 0; s <= MOTOR_SPEED; s += 10) {
-    analogWrite(AIN1, 0);
-    analogWrite(AIN2, s);
-    delay(5);
-  }
+void startOpen() {
+  analogWrite(AIN1, 0);
+  analogWrite(AIN2, MOTOR_SPEED);
+
+  motorState = MOTOR_CLOSING;
+  motorStartTime = millis();
+
+  Serial.println("Closing");
 }
 
-void motorStop() {
+void stopMotor() {
   analogWrite(AIN1, 0);
   analogWrite(AIN2, 0);
+
+  if (motorState == MOTOR_OPENING)
+    lidState = OPEN;
+  else if (motorState == MOTOR_CLOSING)
+    lidState = CLOSED;
+
+  motorState = MOTOR_STOPPED;
+  Serial.println("Stopped");
 }
 
 void setup() {
@@ -63,8 +86,28 @@ void setup() {
 }
 
 void loop() {
-  VL53L0X_RangingMeasurementData_t measure;
 
+  // ---------------- Serial Commands ----------------
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    cmd.toLowerCase();
+
+    if (cmd == "u") {
+      if (motorState == MOTOR_STOPPED)
+        startClose();
+    }
+    else if (cmd == "d") {
+      if (motorState == MOTOR_STOPPED)
+        startOpen();
+    }
+    else if (cmd == "s") {
+      stopMotor();
+    }
+  }
+
+  // ---------------- Sensor ----------------
+  VL53L0X_RangingMeasurementData_t measure;
   sensor.rangingTest(&measure, false);
 
   bool detected = false;
@@ -76,16 +119,14 @@ void loop() {
     Serial.print(distance);
     Serial.println(" mm");
 
-    // Only accept reasonable measurements
     if (distance < MAX_VALID_DISTANCE) {
       if (distance < DETECT_DISTANCE) {
         detected = true;
-        outOfRangeCount = 0;   // reset counter
+        outOfRangeCount = 0;
       } else {
         outOfRangeCount++;
       }
     } else {
-      // Treat absurd readings as out of range
       outOfRangeCount++;
     }
   } else {
@@ -93,22 +134,22 @@ void loop() {
     outOfRangeCount++;
   }
 
-  if (detected && lidState == CLOSED) {
-    Serial.println("Opening");
-    motorOpen();
-    delay(motorDelay);
-    motorStop();
-    lidState = OPEN;
+  // Automatic lid control (only when motor is idle)
+  if (motorState == MOTOR_STOPPED) {
+
+    if (detected && lidState == CLOSED) {
+      startClose();
+    }
+
+    if (lidState == OPEN &&
+        outOfRangeCount >= OUT_OF_RANGE_THRESHOLD) {
+      startOpen();
+      outOfRangeCount = 0;
+    }
   }
 
-  if (lidState == OPEN && outOfRangeCount >= OUT_OF_RANGE_THRESHOLD) {
-    Serial.println("Closing");
-    motorClose();
-    delay(motorDelay);
-    motorStop();
-    lidState = CLOSED;
-    outOfRangeCount = 0;
-  }
-
-  delay(50);
+  // ---------------- Motor Timer ----------------
+  if ((motorState == MOTOR_CLOSING &&
+      millis() - motorStartTime >= MOTOR_TIME_CLOSING) || (motorState == MOTOR_OPENING &&
+  millis() - motorStartTime >= MOTOR_TIME_OPENING)) stopMotor();
 }
